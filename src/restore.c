@@ -182,7 +182,7 @@ void restore_device_callback(const idevice_event_t* event, void* userdata) {
 	struct idevicerestore_client_t* client = (struct idevicerestore_client_t*) userdata;
 	if (event->event == IDEVICE_DEVICE_ADD) {
 		restore_device_connected = 1;
-		client->uuid = strdup(event->uuid);
+		client->uuid = strdup(event->udid);
 	} else if (event->event == IDEVICE_DEVICE_REMOVE) {
 		restore_device_connected = 0;
 		client->flags |= FLAG_QUIT;

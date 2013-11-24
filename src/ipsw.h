@@ -1,7 +1,9 @@
 /*
- * ipsw.c
+ * ipsw.h
  * Definitions for IPSW utilities
  *
+ * Copyright (c) 2012 Nikias Bassen. All Rights Reserved.
+ * Copyright (c) 2010 Martin Szulecki. All Rights Reserved.
  * Copyright (c) 2010 Joshua Hill. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -37,10 +39,15 @@ typedef struct {
 	unsigned char* data;
 } ipsw_file;
 
-int ipsw_extract_to_memory(const char* ipsw, const char* infile, char** pbuffer, uint32_t* psize);
+int ipsw_get_file_size(const char* ipsw, const char* infile, off_t* size);
+int ipsw_extract_to_file(const char* ipsw, const char* infile, const char* outfile);
+int ipsw_extract_to_memory(const char* ipsw, const char* infile, unsigned char** pbuffer, unsigned int* psize);
 int ipsw_extract_build_manifest(const char* ipsw, plist_t* buildmanifest, int *tss_enabled);
 int ipsw_extract_restore_plist(const char* ipsw, plist_t* restore_plist);
 void ipsw_free_file(ipsw_file* file);
+
+int ipsw_get_latest_fw(plist_t version_data, const char* product, char** fwurl, unsigned char* sha1buf);
+int ipsw_download_latest_fw(plist_t version_data, const char* product, const char* todir, char** ipswfile);
 
 #ifdef __cplusplus
 }

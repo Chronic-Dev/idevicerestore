@@ -2,6 +2,7 @@
  * download.c
  * file download helper functions
  *
+ * Copyright (c) 2012-2013 Martin Szulecki. All Rights Reserved.
  * Copyright (c) 2012 Nikias Bassen. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -61,6 +62,12 @@ int download_to_buffer(const char* url, char** buf, uint32_t* length)
 	response.content = malloc(1);
 	response.content[0] = '\0';
 
+	if (idevicerestore_debug)
+		curl_easy_setopt(handle, CURLOPT_VERBOSE, 1);
+
+	/* disable SSL verification to allow download from untrusted https locations */
+	curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0);
+
 	curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, (curl_write_callback)&download_write_buffer_callback);
 	curl_easy_setopt(handle, CURLOPT_WRITEDATA, &response);
 	curl_easy_setopt(handle, CURLOPT_USERAGENT, "InetURL/1.0");
@@ -82,18 +89,23 @@ int download_to_buffer(const char* url, char** buf, uint32_t* length)
 	return res;
 }
 
+static int lastprogress = 0;
+
 int download_progress(void *clientp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
 	double p = (dlnow / dltotal) * 100;
 
 	if (p < 100.0f) {
-		print_progress_bar(p);
+		if ((int)p > lastprogress) {
+			info("downloading: %d%%\n", (int)p);
+			lastprogress = (int)p;
+		}
 	}
 
 	return 0;
 }
 
-int download_to_file(const char* url, const char* filename)
+int download_to_file(const char* url, const char* filename, int enable_progress)
 {
 	int res = 0;
 	curl_global_init(CURL_GLOBAL_ALL);
@@ -109,10 +121,21 @@ int download_to_file(const char* url, const char* filename)
 		return -1;
 	}
 
-	curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, (curl_write_callback)&fwrite);
+	lastprogress = 0;
+
+	if (idevicerestore_debug)
+		curl_easy_setopt(handle, CURLOPT_VERBOSE, 1);
+
+	/* disable SSL verification to allow download from untrusted https locations */
+	curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0);
+
+	curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, NULL);
 	curl_easy_setopt(handle, CURLOPT_WRITEDATA, f);
-	curl_easy_setopt(handle, CURLOPT_PROGRESSFUNCTION, (curl_progress_callback)&download_progress);
-	curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 0);
+
+	if (enable_progress > 0)
+		curl_easy_setopt(handle, CURLOPT_PROGRESSFUNCTION, (curl_progress_callback)&download_progress);
+
+	curl_easy_setopt(handle, CURLOPT_NOPROGRESS, enable_progress > 0 ? 0: 1);
 	curl_easy_setopt(handle, CURLOPT_USERAGENT, "InetURL/1.0");
 	curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1);
 	curl_easy_setopt(handle, CURLOPT_URL, url);

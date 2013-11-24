@@ -2,6 +2,8 @@
  * common.c
  * Misc functions used in idevicerestore
  *
+ * Copyright (c) 2012 Martin Szulecki. All Rights Reserved.
+ * Copyright (c) 2012 Nikias Bassen. All Rights Reserved.
  * Copyright (c) 2010 Joshua Hill. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -21,10 +23,102 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <libgen.h>
+#include <time.h>
 
 #include "common.h"
 
 int idevicerestore_debug = 0;
+
+#define idevicerestore_err_buff_size 256
+static char idevicerestore_err_buff[idevicerestore_err_buff_size] = {0, };
+
+static FILE* info_stream = NULL;
+static FILE* error_stream = NULL;
+static FILE* debug_stream = NULL;
+
+static int info_disabled = 0;
+static int error_disabled = 0;
+static int debug_disabled = 0;
+
+void info(const char* format, ...)
+{
+	if (info_disabled) return;
+	va_list vargs;
+	va_start(vargs, format);
+	vfprintf((info_stream) ? info_stream : stdout, format, vargs);
+	va_end(vargs);
+}
+
+void error(const char* format, ...)
+{
+	va_list vargs, vargs2;
+	va_start(vargs, format);
+	va_copy(vargs2, vargs);
+	vsnprintf(idevicerestore_err_buff, idevicerestore_err_buff_size, format, vargs);
+	va_end(vargs);
+	if (!error_disabled) {
+		vfprintf((error_stream) ? error_stream : stderr, format, vargs2);
+	}
+	va_end(vargs2);
+}
+
+void debug(const char* format, ...)
+{
+	if (debug_disabled) return;
+	if (!idevicerestore_debug) {
+		return;
+	}
+	va_list vargs;
+	va_start(vargs, format);
+	vfprintf((debug_stream) ? debug_stream : stderr, format, vargs);
+	va_end(vargs);
+}
+
+void idevicerestore_set_info_stream(FILE* strm)
+{
+	if (strm) {
+		info_disabled = 0;
+		info_stream = strm;
+	} else {
+		info_disabled = 1;
+	}
+}
+
+void idevicerestore_set_error_stream(FILE* strm)
+{
+	if (strm) {
+		error_disabled = 0;
+		error_stream = strm;
+	} else {
+		error_disabled = 1;
+	}
+}
+
+void idevicerestore_set_debug_stream(FILE* strm)
+{
+	if (strm) {
+		debug_disabled = 0;
+		debug_stream = strm;
+	} else {
+		debug_disabled = 1;
+	}
+}
+
+const char* idevicerestore_get_error()
+{
+	if (idevicerestore_err_buff[0] == 0) {
+		return NULL;
+	} else {
+		char* p = NULL;
+		while ((strlen(idevicerestore_err_buff) > 0) && (p = strrchr(idevicerestore_err_buff, '\n'))) {
+			p[0] = '\0';
+		}
+		return (const char*)idevicerestore_err_buff;
+	}
+}
 
 int write_file(const char* filename, const void* data, size_t size) {
 	size_t bytes = 0;
@@ -89,7 +183,7 @@ int read_file(const char* filename, void** data, size_t* size) {
 }
 
 void debug_plist(plist_t plist) {
-	int size = 0;
+	uint32_t size = 0;
 	char* data = NULL;
 	plist_to_xml(plist, &data, &size);
 	info("%s", data);
@@ -97,6 +191,8 @@ void debug_plist(plist_t plist) {
 }
 
 void print_progress_bar(double progress) {
+#ifndef WIN32
+	if (info_disabled) return;
 	int i = 0;
 	if(progress < 0) return;
 	if(progress > 100) progress = 100;
@@ -107,7 +203,8 @@ void print_progress_bar(double progress) {
 	}
 	info("] %5.1f%%", progress);
 	if(progress == 100) info("\n");
-	fflush(stdout);
+	fflush((info_stream) ? info_stream : stdout);
+#endif
 }
 
 #define GET_RAND(min, max) ((rand() % (max - min)) + min)
@@ -129,4 +226,39 @@ char *generate_guid()
 	}
 	guid[36] = '\0';
 	return guid;
+}
+
+int mkdir_with_parents(const char *dir, int mode)
+{
+	if (!dir) return -1;
+	if (__mkdir(dir, mode) == 0) {
+		return 0;
+	} else {
+		if (errno == EEXIST) return 0;	
+	}
+	int res;
+	char *parent = strdup(dir);
+	parent = dirname(parent);
+	if (parent && (strcmp(parent, ".") != 0) && (strcmp(parent, dir) != 0)) {
+		res = mkdir_with_parents(parent, mode);
+	} else {
+		res = -1;	
+	}
+	free(parent);
+	if (res == 0) {
+		mkdir_with_parents(dir, mode);
+	}
+	return res;
+}
+
+void idevicerestore_progress(struct idevicerestore_client_t* client, int step, double progress)
+{
+	if(client && client->progress_cb) {
+		client->progress_cb(step, progress, client->progress_cb_data);
+	} else {
+		// we don't want to be too verbose in regular idevicerestore.
+		if ((step == RESTORE_STEP_UPLOAD_FS) || (step == RESTORE_STEP_FLASH_FS) || (step == RESTORE_STEP_FLASH_NOR)) {
+			print_progress_bar(100.0f * progress);
+		}
+	}
 }

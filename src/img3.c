@@ -2,6 +2,8 @@
  * img3.c
  * Functions for handling with Apple's IMG3 format
  *
+ * Copyright (c) 2012-2013 Nikias Bassen. All Rights Reserved.
+ * Copyright (c) 2010 Martin Szulecki. All Rights Reserved.
  * Copyright (c) 2010 Joshua Hill. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -27,8 +29,8 @@
 #include "common.h"
 #include "idevicerestore.h"
 
-img3_file* img3_parse_file(char* data, int size) {
-	int data_offset = 0;
+img3_file* img3_parse_file(unsigned char* data, unsigned int size) {
+	unsigned int data_offset = 0;
 	img3_element* element;
 	img3_header* header = (img3_header*) data;
 	if (header->signature != kImg3Container) {
@@ -194,7 +196,7 @@ img3_file* img3_parse_file(char* data, int size) {
 	return image;
 }
 
-img3_element* img3_parse_element(char* data) {
+img3_element* img3_parse_element(unsigned char* data) {
 	img3_element_header* element_header = (img3_element_header*) data;
 	img3_element* element = (img3_element*) malloc(sizeof(img3_element));
 	if (element == NULL) {
@@ -203,7 +205,7 @@ img3_element* img3_parse_element(char* data) {
 	}
 	memset(element, '\0', sizeof(img3_element));
 
-	element->data = (char*) malloc(element_header->full_size);
+	element->data = (unsigned char*) malloc(element_header->full_size);
 	if (element->data == NULL) {
 		error("ERROR: Unable to allocate memory for IMG3 element data\n");
 		free(element);
@@ -243,7 +245,7 @@ void img3_free_element(img3_element* element) {
 	}
 }
 
-int img3_replace_signature(img3_file* image, char* signature) {
+int img3_replace_signature(img3_file* image, unsigned char* signature) {
 	int i, oldidx;
 	int offset = 0;
 	img3_element* ecid = img3_parse_element(&signature[offset]);
@@ -333,10 +335,6 @@ int img3_replace_signature(img3_file* image, char* signature) {
 			image->idx_shsh_element = image->num_elements;
 			image->num_elements++;
 		}
-
-		error("%s: ERROR: no SHSH element found to be replaced\n", __func__);
-		img3_free_element(shsh);
-		return -1;
 	}
 
 	if (image->idx_cert_element >= 0) {
@@ -352,7 +350,7 @@ int img3_replace_signature(img3_file* image, char* signature) {
 	return 0;
 }
 
-int img3_get_data(img3_file* image, char** pdata, int* psize) {
+int img3_get_data(img3_file* image, unsigned char** pdata, unsigned int* psize) {
 	int i;
 	int offset = 0;
 	int size = sizeof(img3_header);
@@ -364,7 +362,7 @@ int img3_get_data(img3_file* image, char** pdata, int* psize) {
 
 	info("reconstructed size: %d\n", size);
 
-	char* data = (char*) malloc(size);
+	unsigned char* data = (unsigned char*) malloc(size);
 	if (data == NULL) {
 		error("ERROR: Unable to allocate memory for IMG3 data\n");
 		return -1;

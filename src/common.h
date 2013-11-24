@@ -2,6 +2,8 @@
  * common.h
  * Misc functions used in idevicerestore
  *
+ * Copyright (c) 2012 Martin Szulecki. All Rights Reserved.
+ * Copyright (c) 2012 Nikias Bassen. All Rights Reserved.
  * Copyright (c) 2010 Joshua Hill. All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -27,12 +29,9 @@ extern "C" {
 #endif
 
 #include <plist/plist.h>
+#include <libirecovery.h>
 
-#include "libirecovery.h"
-
-#define info(...) printf(__VA_ARGS__)
-#define error(...) fprintf(stderr, __VA_ARGS__)
-#define debug(...) if(idevicerestore_debug) fprintf(stderr, __VA_ARGS__)
+#include "idevicerestore.h"
 
 #define MODE_UNKNOWN        -1
 #define MODE_WTF             0
@@ -42,17 +41,10 @@ extern "C" {
 #define MODE_NORMAL          4
 
 #define FLAG_QUIT            1
-#define FLAG_DEBUG           2
-#define FLAG_ERASE           4
-#define FLAG_CUSTOM          8
-#define FLAG_EXCLUDE        16
-#define FLAG_PWN            32
-
-extern int use_apple_server;
 
 struct dfu_client_t;
 struct normal_client_t;
-struct restore_clien_t;
+struct restore_client_t;
 struct recovery_client_t;
 
 struct idevicerestore_mode_t {
@@ -73,24 +65,29 @@ struct idevicerestore_entry_t {
 struct idevicerestore_client_t {
 	int flags;
 	plist_t tss;
+	char* tss_url;
 	plist_t version_data;
 	uint64_t ecid;
 	unsigned char* nonce;
 	int nonce_size;
-	char* uuid;
+	char* udid;
 	char* srnm;
-	const char* ipsw;
+	char* ipsw;
 	const char* filesystem;
 	struct dfu_client_t* dfu;
 	struct normal_client_t* normal;
 	struct restore_client_t* restore;
 	struct recovery_client_t* recovery;
-	struct irecv_device* device;
+	irecv_device_t device;
 	struct idevicerestore_entry_t** entries;
 	struct idevicerestore_mode_t* mode;
 	char* version;
 	char* build;
+	int build_major;
 	char* restore_boot_args;
+	char* cache_dir;
+	idevicerestore_progress_cb_t progress_cb;
+	void* progress_cb_data;
 };
 
 static struct idevicerestore_mode_t idevicerestore_modes[] = {
@@ -103,6 +100,10 @@ static struct idevicerestore_mode_t idevicerestore_modes[] = {
 };
 
 extern int idevicerestore_debug;
+
+void info(const char* format, ...);
+void error(const char* format, ...);
+void debug(const char* format, ...);
 
 void debug_plist(plist_t plist);
 void print_progress_bar(double progress);
@@ -119,11 +120,14 @@ char *generate_guid();
 #define sleep(x) Sleep(x*1000)
 #endif
 #else
+#include <sys/stat.h>
 #define __mkdir(path, mode) mkdir(path, mode)
 #define FMT_qu "%qu"
 #endif
 
-extern struct idevicerestore_client_t* idevicerestore;
+int mkdir_with_parents(const char *dir, int mode);
+
+void idevicerestore_progress(struct idevicerestore_client_t* client, int step, double progress);
 
 #ifdef __cplusplus
 }
